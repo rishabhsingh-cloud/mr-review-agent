@@ -91,9 +91,14 @@ class Settings(BaseSettings):
         return v
 
     def is_reviewer_allowed(self, username: str | None) -> bool:
-        """True if the given GitLab username is permitted to trigger a review."""
+        """True if the given GitLab username may trigger a review.
+
+        A `*` entry in the allowlist permits any (non-empty) user.
+        """
         if not username:
             return False
+        if "*" in self.reviewer_allowlist:
+            return True
         return username in self.reviewer_allowlist
 
 
