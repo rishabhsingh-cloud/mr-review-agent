@@ -1,0 +1,39 @@
+name: deploy
+
+# Push-to-deploy via a self-hosted runner ON the EC2 box.
+# Secrets never touch GitHub: the persistent .env lives at DEPLOY_DIR on the box
+# and is preserved across deploys (rsync --exclude '.env').
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  DEPLOY_DIR: /opt/mr-review-agent
+
+jobs:
+  deploy:
+    runs-on: [self-hosted]
+    concurrency: deploy-mragent   # never two deploys at once
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync code to deploy dir (preserve .env + data)
+        run: |
+          mkdir -p "$DEPLOY_DIR"
+          rsync -a --delete \
+            --exclude='.env' \
+            --exclude='.git' \
+            --exclude='data' \
+            ./ "$DEPLOY_DIR/"
+
+      - name: Build + start (db, migrate, api, worker)
+        working-directory: /opt/mr-review-agent
+        run: |
+          if [ ! -f .env ]; then
+            echo "::error::.env missing at $DEPLOY_DIR — create it once on the box before first deploy"
+            exit 1
+          fi
+          docker compose up -d --build
+          docker compose ps

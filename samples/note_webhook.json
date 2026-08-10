@@ -1,0 +1,16 @@
+{
+  "object_kind": "note",
+  "event_type": "note",
+  "user": { "username": "alice", "name": "Alice" },
+  "project": { "id": 42, "path_with_namespace": "team/demo" },
+  "object_attributes": {
+    "id": 1001,
+    "note": "/review security",
+    "noteable_type": "MergeRequest"
+  },
+  "merge_request": {
+    "iid": 7,
+    "target_project_id": 42,
+    "last_commit": { "id": "deadbeef1234" }
+  }
+}

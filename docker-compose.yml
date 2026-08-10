@@ -1,0 +1,65 @@
+name: mr-review-agent
+
+services:
+  db:
+    # Bundles Postgres 16 + TimescaleDB + pgvector + pgvectorscale in one image.
+    image: timescale/timescaledb-ha:pg16
+    container_name: mragent-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mragent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mragent}
+      POSTGRES_DB: ${POSTGRES_DB:-mragent}
+    ports:
+      # Bound to localhost only (host access for psql/alembic); not exposed on the network.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mragent} -d ${POSTGRES_DB:-mragent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 2500m
+
+  # One-shot: apply DB migrations, then exit. api/worker wait for it to succeed.
+  migrate:
+    build: .
+    image: mragent-app
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mragent}:${POSTGRES_PASSWORD:-mragent}@db:5432/${POSTGRES_DB:-mragent}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: alembic upgrade head
+    restart: "no"
+
+  api:
+    image: mragent-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mragent}:${POSTGRES_PASSWORD:-mragent}@db:5432/${POSTGRES_DB:-mragent}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${API_PORT:-8642}:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    mem_limit: 1g
+
+  worker:
+    image: mragent-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mragent}:${POSTGRES_PASSWORD:-mragent}@db:5432/${POSTGRES_DB:-mragent}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: python -m app.worker.worker
+    mem_limit: 1500m
+
+volumes:
+  pgdata:

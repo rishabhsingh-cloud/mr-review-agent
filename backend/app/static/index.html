@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MR Review Agent · Dashboard</title>
+  <link rel="stylesheet" href="./styles.css?v=2" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">MR</span>
+        <div class="brand-text">
+          <strong>Review Agent</strong>
+          <small>control panel</small>
+        </div>
+      </div>
+
+      <nav class="nav" id="nav">
+        <a href="#/overview" data-route="overview" class="nav-item">
+          <span class="nav-ico">◧</span> Overview
+        </a>
+        <a href="#/reviews" data-route="reviews" class="nav-item">
+          <span class="nav-ico">☰</span> Reviews
+        </a>
+        <a href="#/hitl" data-route="hitl" class="nav-item">
+          <span class="nav-ico">✋</span> HITL Queue
+          <span class="nav-badge" id="hitl-count" hidden>0</span>
+        </a>
+        <a href="#/cost" data-route="cost" class="nav-item">
+          <span class="nav-ico">◔</span> Cost
+        </a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <span class="dot" id="conn-dot"></span>
+        <span id="conn-text">connecting…</span>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="view-title">Overview</h1>
+          <p class="muted" id="view-sub"></p>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn ghost" id="refresh-btn" title="Refresh">↻ Refresh</button>
+          <button class="btn ghost icon" id="theme-btn" title="Toggle theme">◐</button>
+        </div>
+      </header>
+
+      <section class="content" id="content">
+        <!-- views render here -->
+      </section>
+    </main>
+  </div>
+
+  <!-- Detail drawer -->
+  <div class="drawer-scrim" id="drawer-scrim" hidden></div>
+  <aside class="drawer" id="drawer" hidden aria-hidden="true"></aside>
+
+  <!-- Toasts -->
+  <div class="toasts" id="toasts"></div>
+
+  <script src="./app.js?v=2"></script>
+</body>
+</html>
