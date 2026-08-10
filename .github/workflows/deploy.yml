@@ -14,6 +14,8 @@ env:
 
 jobs:
   deploy:
+    # A repo-level runner registered on THIS repo only runs this repo's jobs,
+    # so plain 'self-hosted' is safe alongside other repos' runners on the box.
     runs-on: [self-hosted]
     concurrency: deploy-mragent   # never two deploys at once
     steps:
