@@ -23,6 +23,29 @@ from app.llm.provider import (
 from app.reliability import with_retry
 
 
+def _is_reasoning(model: str) -> bool:
+    """Reasoning models (o-series, GPT-5 non-chat) reject `temperature` and use
+    `max_completion_tokens`."""
+    m = model.lower()
+    if m.startswith(("o1", "o3", "o4")):
+        return True
+    if m.startswith("gpt-5") and "chat" not in m:
+        return True
+    return False
+
+
+def _token_and_temp(model: str, max_tokens: int, temperature: float) -> dict:
+    """Build the token/temperature kwargs appropriate for this model.
+
+    `max_completion_tokens` is the modern param (accepted by gpt-4o too);
+    `temperature` is omitted for reasoning models that only allow the default.
+    """
+    kwargs: dict = {"max_completion_tokens": max_tokens}
+    if not _is_reasoning(model):
+        kwargs["temperature"] = temperature
+    return kwargs
+
+
 class OpenAICompatProvider(LLMProvider):
     name = "openai_compat"
 
@@ -44,12 +67,11 @@ class OpenAICompatProvider(LLMProvider):
     ) -> LLMResponse:
         resp = await self._client.chat.completions.create(
             model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
+            **_token_and_temp(model, max_tokens, temperature),
         )
         text = resp.choices[0].message.content or ""
         return self._to_response(text, model, resp)
@@ -67,13 +89,12 @@ class OpenAICompatProvider(LLMProvider):
     ) -> StructuredResult:
         resp = await self._client.chat.completions.create(
             model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": f"{system}\n\n{schema_instruction(schema)}"},
                 {"role": "user", "content": user},
             ],
+            response_format={"type": "json_object"},
+            **_token_and_temp(model, max_tokens, temperature),
         )
         content = resp.choices[0].message.content or "{}"
         try:

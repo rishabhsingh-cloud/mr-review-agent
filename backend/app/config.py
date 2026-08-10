@@ -49,10 +49,12 @@ class Settings(BaseSettings):
     openai_compat_api_key: str = Field(default="")  # blank = fall back to openai_api_key
 
     # Model routing. `review_model` = deep passes, `fast_model` = cheap passes.
-    review_model: str = Field(default="gpt-4o")
-    fast_model: str = Field(default="gpt-4o-mini")
-    llm_max_tokens: int = Field(default=4096)
-    llm_temperature: float = Field(default=0.0)
+    review_model: str = Field(default="gpt-5.5")
+    fast_model: str = Field(default="gpt-5-mini")
+    # Generous cap: reasoning models spend hidden reasoning tokens against this,
+    # so a low value can starve the actual JSON output.
+    llm_max_tokens: int = Field(default=16000)
+    llm_temperature: float = Field(default=0.0)  # ignored for reasoning models
 
     # --- Embeddings ---
     embedding_model: str = Field(default="text-embedding-3-large")
