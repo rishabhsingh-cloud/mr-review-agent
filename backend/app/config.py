@@ -84,6 +84,16 @@ class Settings(BaseSettings):
     # --- App ---
     log_level: str = Field(default="INFO")
 
+    # --- Dashboard/API auth (HTTP Basic) ---
+    # Auth is ON only when a password is set. Protects the dashboard + read/HITL
+    # endpoints; /health and /webhooks/gitlab stay exempt.
+    dashboard_user: str = Field(default="admin")
+    dashboard_password: str = Field(default="")
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.dashboard_password)
+
     @field_validator("reviewer_allowlist", mode="before")
     @classmethod
     def _split_allowlist(cls, v: object) -> object:

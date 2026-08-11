@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.hitl import router as hitl_router
 from app.api.reviews import router as reviews_router
 from app.api.webhooks import router as webhooks_router
+from app.auth import basic_auth_middleware
 from app.config import get_settings
 from app.db.session import get_session
 from app.telemetry.cost import spend_today
@@ -21,6 +22,11 @@ settings = get_settings()
 logging.basicConfig(level=settings.log_level)
 
 app = FastAPI(title="MR Review Agent", version="0.1.0")
+
+# Protects the dashboard + read/HITL endpoints when DASHBOARD_PASSWORD is set;
+# /health and /webhooks/gitlab are exempt.
+app.middleware("http")(basic_auth_middleware)
+
 app.include_router(webhooks_router)
 app.include_router(reviews_router)
 app.include_router(hitl_router)
