@@ -17,7 +17,11 @@ from app.config import get_settings
 from app.db.models import WebhookDelivery
 from app.db.session import get_session
 from app.queue.jobs import enqueue
-from app.webhooks.parser import parse_note_event, verify_webhook_token
+from app.webhooks.parser import (
+    parse_note_event,
+    parse_push_event,
+    verify_webhook_token,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,9 +40,37 @@ async def gitlab_webhook(
         raise HTTPException(status_code=401, detail="invalid token")
 
     payload = await request.json()
+
+    # Push to the default branch → incremental RAG re-index.
+    push = parse_push_event(payload)
+    if push is not None:
+        delivery_key = f"push:{push.project_id}:{push.after_sha}"
+        session.add(WebhookDelivery(delivery_key=delivery_key, event_type="push"))
+        try:
+            await session.flush()
+        except IntegrityError:
+            await session.rollback()
+            return {"status": "duplicate"}
+        job_id = await enqueue(
+            session,
+            job_type="reindex_push",
+            payload={
+                "project_id": push.project_id,
+                "after_sha": push.after_sha,
+                "changed": push.changed,
+                "removed": push.removed,
+            },
+        )
+        await session.commit()
+        logger.info(
+            "Queued reindex job %s for project %s (%d changed, %d removed)",
+            job_id, push.project_id, len(push.changed), len(push.removed),
+        )
+        return {"status": "reindex_queued", "job_id": job_id}
+
     req = parse_note_event(payload, settings.review_command)
     if req is None:
-        # Not a /review comment on an MR — nothing to do.
+        # Not a /review comment or a default-branch push — nothing to do.
         return {"status": "ignored"}
 
     if not settings.is_reviewer_allowed(req.author_username):

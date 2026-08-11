@@ -25,6 +25,49 @@ class ReviewRequest:
     head_sha: str | None = None
 
 
+@dataclass(frozen=True)
+class PushReindexRequest:
+    project_id: int
+    after_sha: str
+    changed: list[str]  # added + modified (net)
+    removed: list[str]  # deleted (net)
+
+
+def parse_push_event(payload: dict) -> PushReindexRequest | None:
+    """Extract a reindex request from a GitLab Push webhook, but only for pushes
+    to the project's default branch. Computes the NET changed/removed files
+    across all commits in the push (a file removed then re-added counts as
+    changed, and vice-versa)."""
+    if payload.get("object_kind") != "push":
+        return None
+    project = payload.get("project") or {}
+    default_branch = project.get("default_branch")
+    if not default_branch or payload.get("ref") != f"refs/heads/{default_branch}":
+        return None
+
+    after = payload.get("after") or ""
+    if not after or set(after) == {"0"}:  # branch deleted
+        return None
+    project_id = project.get("id") or payload.get("project_id")
+    if project_id is None:
+        return None
+
+    state: dict[str, str] = {}  # path -> "present" | "removed"
+    for commit in payload.get("commits", []):
+        for f in list(commit.get("added", [])) + list(commit.get("modified", [])):
+            state[f] = "present"
+        for f in commit.get("removed", []):
+            state[f] = "removed"
+
+    changed = [f for f, s in state.items() if s == "present"]
+    removed = [f for f, s in state.items() if s == "removed"]
+    if not changed and not removed:
+        return None
+    return PushReindexRequest(
+        project_id=int(project_id), after_sha=after, changed=changed, removed=removed
+    )
+
+
 def verify_webhook_token(provided: str | None, expected: str) -> bool:
     """Constant-time comparison of the X-Gitlab-Token header against the secret."""
     if not expected:

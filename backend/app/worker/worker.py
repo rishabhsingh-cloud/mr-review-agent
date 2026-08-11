@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.db.session import AsyncSessionLocal
 from app.orchestrator.service import run_live_review
 from app.queue.jobs import claim_next, mark_done, mark_failed
+from app.rag.reindex import reindex_from_push
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,24 @@ async def handle_review_mr(payload: dict) -> None:
             mr_iid=int(payload["mr_iid"]),
             scope=payload.get("scope", "all"),
             triggered_by=payload.get("triggered_by"),
+        )
+        await session.commit()
+
+
+@register("reindex_push")
+async def handle_reindex_push(payload: dict) -> None:
+    """Incrementally refresh the RAG index for files changed by a push."""
+    logger.info(
+        "Reindex job: project=%s changed=%d removed=%d",
+        payload.get("project_id"), len(payload.get("changed", [])), len(payload.get("removed", [])),
+    )
+    async with AsyncSessionLocal() as session:
+        await reindex_from_push(
+            session,
+            project_id=int(payload["project_id"]),
+            changed=list(payload.get("changed", [])),
+            removed=list(payload.get("removed", [])),
+            after_sha=payload["after_sha"],
         )
         await session.commit()
 

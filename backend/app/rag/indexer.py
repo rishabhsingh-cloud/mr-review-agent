@@ -44,6 +44,7 @@ class IndexStats:
     chunks: int = 0
     tokens: int = 0
     cost_usd: float = 0.0
+    removed: int = 0
 
 
 async def get_or_create_repository(
@@ -91,20 +92,26 @@ async def index_files(
     *,
     commit_sha: str | None = None,
     replace: bool = True,
+    removed: list[str] | None = None,
 ) -> IndexStats:
     """Index a mapping of {relative_path: content}. If replace, existing chunks
-    for those paths are deleted first (incremental re-index)."""
+    for those paths are deleted first (incremental re-index). Any paths in
+    ``removed`` have their chunks deleted too (files deleted from the repo)."""
     settings = get_settings()
     embedder = Embedder()
     stats = IndexStats()
 
-    if replace and files:
+    to_delete: set[str] = set(files.keys()) if replace else set()
+    if removed:
+        to_delete |= set(removed)
+    if to_delete:
         await session.execute(
             delete(CodeChunk).where(
                 CodeChunk.repository_id == repo.id,
-                CodeChunk.file_path.in_(list(files.keys())),
+                CodeChunk.file_path.in_(list(to_delete)),
             )
         )
+    stats.removed = len(removed or [])
 
     # Build all chunks first, then embed in batches to amortize API calls.
     pending: list[tuple[str, str, object]] = []  # (file_path, language, Chunk)
