@@ -11,6 +11,9 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY backend ./backend
 RUN pip install -e .
+# Semantic chunking (tree-sitter) is best-effort: if wheels are unavailable the
+# app falls back to line-window chunking, so never fail the build on it.
+RUN pip install "tree-sitter-language-pack" || echo "tree-sitter unavailable; using line-window chunking"
 
 # alembic.ini + migrations live under backend/; run everything from there.
 WORKDIR /app/backend

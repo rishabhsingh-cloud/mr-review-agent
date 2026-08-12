@@ -29,6 +29,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+semantic = [
+    # tree-sitter semantic chunking (installed in the Docker image; the app
+    # falls back to line-window chunking if this isn't present).
+    "tree-sitter-language-pack",
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",

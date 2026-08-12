@@ -121,6 +121,7 @@ async def index_files(
             content,
             max_tokens=settings.rag_chunk_max_tokens,
             overlap_lines=settings.rag_overlap_lines,
+            language=language,
         ):
             pending.append((file_path, language, chunk))
         stats.files += 1
