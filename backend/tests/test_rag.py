@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.rag.chunker import chunk_code, extract_symbols
-from app.rag.retriever import reciprocal_rank_fusion
+from app.rag.retriever import fulltext_query, reciprocal_rank_fusion
 
 SAMPLE = """import os
 
@@ -57,3 +57,16 @@ def test_rrf_orders_by_agreement():
 
 def test_rrf_empty():
     assert reciprocal_rank_fusion([[], []]) == []
+
+
+def test_fulltext_query_flat_or_of_identifiers():
+    diff = 'b/pages/list_tab.py\n+def _list_request(self, action):\n+    return "on-off" - x'
+    q = fulltext_query(diff)
+    assert q == "pages or list_tab or _list_request or action or off"
+    assert '"' not in q and "-" not in q
+
+
+def test_fulltext_query_caps_terms_and_handles_empty():
+    many = " ".join(f"name{i}" for i in range(100))
+    assert len(fulltext_query(many, max_terms=5).split(" or ")) == 5
+    assert fulltext_query("+ - { } ()") == ""

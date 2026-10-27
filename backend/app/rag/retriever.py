@@ -7,6 +7,7 @@ so a chunk that scores well on either signal surfaces.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 from sqlalchemy import func, select
@@ -15,6 +16,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db.models import CodeChunk
 from app.llm.embeddings import Embedder
+
+_FTS_MAX_TERMS = 32
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
+# Language keywords that appear everywhere and carry no retrieval signal.
+_FTS_SKIP = {
+    "def", "self", "cls", "return", "import", "from", "class", "none", "true",
+    "false", "async", "await", "for", "not", "and", "the", "with", "elif",
+    "else", "pass", "raise", "try", "except", "finally", "lambda", "yield",
+    "const", "let", "var", "function", "this", "new", "public", "private",
+    "static", "void", "int", "str", "null", "undefined",
+}
+
+
+def fulltext_query(text: str, max_terms: int = _FTS_MAX_TERMS) -> str:
+    """Turn free text (usually a diff) into a flat OR of distinct identifiers.
+
+    websearch_to_tsquery ANDs every word and parses '-'/quotes as operators, so
+    raw code matches almost nothing and can overflow Postgres's tsquery parser
+    ("tsquery stack too small"). A capped OR of plain identifiers is safe and is
+    what full-text is here for: exact names.
+    """
+    terms: dict[str, None] = {}
+    for tok in _IDENT_RE.findall(text):
+        low = tok.lower()
+        if low in _FTS_SKIP:
+            continue
+        terms.setdefault(low, None)
+        if len(terms) >= max_terms:
+            break
+    return " or ".join(terms)
 
 
 def reciprocal_rank_fusion(
@@ -43,7 +74,10 @@ async def _vector_ids(
 async def _fulltext_ids(
     session: AsyncSession, repo_id: int, query_text: str, limit: int
 ) -> list[int]:
-    tsquery = func.websearch_to_tsquery("english", query_text)
+    query = fulltext_query(query_text)
+    if not query:
+        return []
+    tsquery = func.websearch_to_tsquery("english", query)
     stmt = (
         select(CodeChunk.id)
         .where(CodeChunk.repository_id == repo_id)
