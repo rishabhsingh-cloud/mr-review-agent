@@ -104,17 +104,35 @@ docker compose logs -f worker          # "Worker ... started"
 - 🌐 GitLab project → **Settings → Webhooks → Add**:
   - URL: `http://<box-private-ip>:8642/webhooks/gitlab`
   - Secret token: **same as `WEBHOOK_SECRET`**
-  - Trigger: **Comments** (Note events) — not "Merge request events"
+  - Triggers: **Comments** (Note events) — not "Merge request events" — and
+    **Push events** (default-branch pushes keep the RAG index fresh; other
+    branches are ignored)
   - (If GitLab blocks local-network hooks: Admin → Settings → Network →
     Outbound requests → allow requests to the local network.)
 - Test: on an MR, an allowlisted user comments `/review`. Watch `docker compose logs -f worker`.
 
 ## Phase G — Grounding (after it works)
 
-Index a repo so reviews aren't diff-only (run inside the worker container):
+Index a repo so reviews aren't diff-only. Pulls the archive via the GitLab API —
+no checkout needed (run inside the worker container):
 ```bash
-docker compose exec worker python -m app.rag.index_cli /path/to/checkout --project <gitlab_project_id> --name <group/repo>
+docker compose exec worker python -m app.rag.index_gitlab_cli --project <gitlab_project_id>
 ```
+After this first full index, default-branch pushes re-index incrementally.
+
+## Adding another project
+
+One deployment serves any number of GitLab projects — the project id comes from
+the webhook payload and each project gets its own RAG index. Per project:
+
+1. Give the bot (`GITLAB_TOKEN` user) **Developer** access to it.
+2. Verify: `docker compose exec worker python -m app.gitlab.whoami_cli --project <id>`
+3. Add the webhook (Phase F) on that project — same URL + secret.
+4. Index it once (Phase G).
+
+| Project | id |
+|---|---|
+| `mastersindia/mi_automation_suite` | 200 |
 
 ---
 

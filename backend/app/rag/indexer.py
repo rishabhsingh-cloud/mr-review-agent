@@ -30,6 +30,7 @@ LANG_BY_EXT: dict[str, str] = {
     ".c": "c", ".h": "c", ".cpp": "cpp", ".hpp": "cpp", ".cs": "csharp",
     ".kt": "kotlin", ".swift": "swift", ".scala": "scala", ".sql": "sql",
     ".sh": "shell", ".yaml": "yaml", ".yml": "yaml", ".md": "markdown",
+    ".feature": "gherkin",
 }
 SKIP_DIRS = {
     ".git", "node_modules", ".venv", "venv", "__pycache__", "dist",
