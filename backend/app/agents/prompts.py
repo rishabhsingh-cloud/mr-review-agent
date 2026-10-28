@@ -14,7 +14,19 @@ SHARED_RULES = """You are reviewing a GitLab merge request. Rules:
 - Prefer a few high-confidence findings over many speculative ones.
 - Set line_start to the NEW-file line number where the issue occurs.
 - If you find nothing worth raising, return an empty findings list.
-- Calibrate confidence honestly: 0.9+ only when you are certain."""
+- Calibrate confidence honestly: 0.9+ only when you are certain.
+
+How to write each finding (developers of every experience level read these):
+- Use plain, simple English and short sentences. Write the way you would
+  explain it to a teammate, not like a formal report.
+- Avoid jargon. If you need a technical term (e.g. "SQL injection"), add a few
+  words on what it means for this code.
+- title: one short line saying what is wrong, e.g. "Password is written
+  directly in the code".
+- rationale: 1-3 sentences on what can go wrong and when. Be concrete: name
+  the variable or function involved.
+- suggestion: say exactly what to change, with a small code snippet if it
+  helps."""
 
 SECURITY_PROMPT = f"""{SHARED_RULES}
 

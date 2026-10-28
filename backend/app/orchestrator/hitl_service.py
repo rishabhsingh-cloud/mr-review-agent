@@ -60,8 +60,9 @@ async def approve_and_publish(
         for f in findings
         if f.file_path and f.line_start
     ]
-    summary = f"## 🤖 AI Review — approved by {decided_by or 'reviewer'}"
-    publisher = GitLabPublisher(mr, refs, file_diffs)
+    summary = f"## 🤖 AI Review — checked and approved by {decided_by or 'a reviewer'}"
+    # Post as whoever ran /review, same as an auto-posted review.
+    publisher = GitLabPublisher(mr, refs, file_diffs, post_as=review.triggered_by)
     result = await asyncio.to_thread(publisher.publish, comments, summary)
 
     for f in findings:

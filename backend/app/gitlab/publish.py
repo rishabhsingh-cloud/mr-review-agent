@@ -3,6 +3,11 @@
 Inline comments are posted as discussions pinned to a diff position. If GitLab
 rejects a position (e.g. the line isn't in the current diff version), we fall
 back to including that finding in the summary note so nothing is silently lost.
+
+Comments are posted AS the user who triggered the review via GitLab's ``sudo``
+parameter. That needs an admin token with the ``sudo`` scope; if GitLab refuses,
+we drop sudo for the rest of the run, post as the token owner, and add a
+"Requested by @user" line so it's still clear who asked.
 """
 
 from __future__ import annotations
@@ -23,6 +28,10 @@ from app.gitlab.diff import (
 
 logger = logging.getLogger(__name__)
 
+# Status codes GitLab returns when sudo itself is the problem (token isn't admin,
+# lacks the sudo scope, or the user doesn't exist) rather than the comment.
+_SUDO_REFUSED = {401, 403, 404}
+
 
 @dataclass
 class InlineComment:
@@ -41,14 +50,42 @@ class PublishResult:
 
 
 class GitLabPublisher:
-    def __init__(self, mr: ProjectMergeRequest, refs: DiffRefs, file_diffs: list[FileDiff]):
+    def __init__(
+        self,
+        mr: ProjectMergeRequest,
+        refs: DiffRefs,
+        file_diffs: list[FileDiff],
+        *,
+        post_as: str | None = None,
+    ):
         self.mr = mr
         self.refs = refs
         self.file_diffs = file_diffs
+        self.requested_by = post_as
+        self.sudo = post_as  # cleared on the first sudo refusal
+
+    def _create(self, manager: Any, data: dict[str, Any], *, credit: bool = False) -> Any:
+        """Create a note/discussion as ``self.sudo``, falling back to the token
+        owner (once, for the rest of the run) if GitLab refuses sudo. With
+        ``credit``, a fallback post names the requester in its body."""
+        if self.sudo:
+            try:
+                return manager.create(data, sudo=self.sudo)
+            except GitlabCreateError as exc:
+                if exc.response_code not in _SUDO_REFUSED:
+                    raise
+                logger.warning(
+                    "Can't post as %r (%s); posting as the token owner instead",
+                    self.sudo, exc,
+                )
+                self.sudo = None
+        if credit and self.requested_by:
+            data = {**data, "body": f"{data['body']}\n\n_Requested by @{self.requested_by}_"}
+        return manager.create(data)
 
     def _post_discussion(self, body: str, position: dict[str, Any]) -> bool:
         try:
-            self.mr.discussions.create({"body": body, "position": position})
+            self._create(self.mr.discussions, {"body": body, "position": position})
             return True
         except GitlabCreateError as exc:
             logger.warning("Inline discussion rejected (%s); will fall back to summary", exc)
@@ -65,7 +102,7 @@ class GitLabPublisher:
         return self._post_discussion(comment.body, position)
 
     def post_summary(self, body: str) -> str | None:
-        note = self.mr.notes.create({"body": body})
+        note = self._create(self.mr.notes, {"body": body}, credit=True)
         return getattr(note, "web_url", None)
 
     def approve(self) -> None:
@@ -86,7 +123,7 @@ class GitLabPublisher:
 
         summary = summary_header
         if fallbacks:
-            summary += "\n\n---\n**Additional findings (could not be pinned to a line):**\n"
+            summary += "\n\n---\n**Other issues (couldn't attach these to a line):**\n"
             for c in fallbacks:
                 summary += f"\n- `{c.file_path}:{c.new_line}` — {c.body}"
 

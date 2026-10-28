@@ -117,7 +117,7 @@ async def run_live_review(
     if decision.action == AUTO_POST and aggregated:
         from app.gitlab.publish import GitLabPublisher
 
-        publisher = GitLabPublisher(mr, refs, file_diffs)
+        publisher = GitLabPublisher(mr, refs, file_diffs, post_as=triggered_by)
         comments = to_inline_comments(aggregated)
         summary = build_summary(decision, aggregated, scope)
         result = await asyncio.to_thread(publisher.publish, comments, summary)
